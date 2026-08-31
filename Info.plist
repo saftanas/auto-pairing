@@ -20,6 +20,8 @@
     <string>1</string>
     <key>LSMinimumSystemVersion</key>
     <string>13.0</string>
+    <key>NSBluetoothAlwaysUsageDescription</key>
+    <string>Studio Switch uses Bluetooth to connect and disconnect your selected peripherals when the Studio Display moves between Macs.</string>
     <key>LSUIElement</key>
     <true/>
 </dict>
