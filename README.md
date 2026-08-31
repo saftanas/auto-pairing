@@ -28,6 +28,11 @@ Studio Switch stays visible in the menu bar while it is running. Its display ico
 has a gray dot while waiting, an orange dot while switching, and a green dot when
 the Studio Display is attached.
 
+If the icon is not visible after launching, first check whether macOS has hidden
+it because the menu bar is crowded (especially on a MacBook with a notch). Quit
+other menu-bar utilities temporarily to make space. Studio Switch uses a native
+AppKit status item and does not create a Dock icon.
+
 ## Development
 
 The project is a Swift Package so it can be built with Command Line Tools alone:
