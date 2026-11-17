@@ -13,6 +13,7 @@ final class AppModel: ObservableObject {
   }
   @Published var displayMatch: String {
     didSet {
+      guard displayMatch != oldValue else { return }
       defaults.set(displayMatch, forKey: Keys.displayMatch)
       displayWakeRequest.reset()
       displayWakeError = nil
