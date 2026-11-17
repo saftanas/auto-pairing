@@ -83,7 +83,7 @@ private final class BluetoothRunLoop: @unchecked Sendable {
 /// Keep the Objective-C target alive until the real callback, including after a
 /// reporting timeout. Dropping it at our timeout would leave a dangling native
 /// callback. Only one native attempt per address is permitted by the controller.
-private final class SystemConnectionCallback: NSObject {
+final class SystemConnectionCallback: NSObject, IOBluetoothDeviceAsyncCallbacks {
   private let lock = NSLock()
   private var completion: (@Sendable (IOReturn) -> Void)?
   private var keepAlive: SystemConnectionCallback?
@@ -94,7 +94,8 @@ private final class SystemConnectionCallback: NSObject {
     keepAlive = self
   }
 
-  @objc func connectionComplete(_ device: IOBluetoothDevice, status: IOReturn) {
+  @objc(connectionComplete:status:)
+  func connectionComplete(_ device: IOBluetoothDevice!, status: IOReturn) {
     let callback = lock.withLock { () -> (@Sendable (IOReturn) -> Void)? in
       let callback = completion
       completion = nil
@@ -103,6 +104,11 @@ private final class SystemConnectionCallback: NSObject {
     }
     callback?(status)
   }
+
+  // Required by the native callback protocol. This target submits only a
+  // connection request, so name/SDP completions must not complete that request.
+  func remoteNameRequestComplete(_ device: IOBluetoothDevice!, status: IOReturn) {}
+  func sdpQueryComplete(_ device: IOBluetoothDevice!, status: IOReturn) {}
 
   func submissionFailed() {
     lock.withLock {

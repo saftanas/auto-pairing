@@ -1,4 +1,6 @@
 import Foundation
+import IOBluetooth
+import ObjectiveC
 import Testing
 
 @testable import StudioSwitch
@@ -89,6 +91,51 @@ private struct FakeBluetoothBackend: BluetoothBackend {
 
 struct BluetoothControllerTests {
   private let timeout = Int32(bitPattern: 0xE000_02D6)
+
+  @Test func nativeCallbackConformsAndReceivesObjectiveCSelectorExactlyOnce() throws {
+    let log = CommandLog()
+    let callback = SystemConnectionCallback { log.append(String($0)) }
+    let nativeProtocol = try #require(objc_getProtocol("IOBluetoothDeviceAsyncCallbacks"))
+    #expect(callback.conforms(to: nativeProtocol))
+    let selector = NSSelectorFromString("connectionComplete:status:")
+    #expect(callback.responds(to: selector))
+    let method = try #require(class_getInstanceMethod(SystemConnectionCallback.self, selector))
+    #expect(method_getNumberOfArguments(method) == 4)
+    let implementation = method_getImplementation(method)
+    typealias NativeCallback =
+      @convention(c) (AnyObject, Selector, IOBluetoothDevice?, Int32) -> Void
+    let invoke = unsafeBitCast(implementation, to: NativeCallback.self)
+
+    callback.remoteNameRequestComplete(nil, status: 0)
+    callback.sdpQueryComplete(nil, status: 0)
+    #expect(log.values.isEmpty)
+    invoke(callback, selector, nil, 6)
+    invoke(callback, selector, nil, 0)
+    #expect(log.values == ["6"])
+  }
+
+  @Test func nativeCallbackRetainsItselfUntilCompletionOrFailedSubmission() {
+    let log = CommandLog()
+    weak var completed: SystemConnectionCallback?
+    do {
+      let callback = SystemConnectionCallback { log.append(String($0)) }
+      completed = callback
+    }
+    #expect(completed != nil)
+    completed?.connectionComplete(nil, status: 0)
+    #expect(completed == nil)
+    #expect(log.values == ["0"])
+
+    weak var rejected: SystemConnectionCallback?
+    do {
+      let callback = SystemConnectionCallback { log.append(String($0)) }
+      rejected = callback
+    }
+    #expect(rejected != nil)
+    rejected?.submissionFailed()
+    #expect(rejected == nil)
+    #expect(log.values == ["0"])
+  }
 
   @Test func releaseRunsWhileConnectIsPendingAndLateSuccessIsClosed() async throws {
     let log = CommandLog()
