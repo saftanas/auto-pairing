@@ -7,17 +7,18 @@ struct StudioSwitchApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
   var body: some Scene {
-    // AppDelegate owns the visible UI. A Settings scene keeps SwiftUI's app
-    // lifecycle active without creating a Dock icon or an ordinary window.
+    // The menu-bar popover and Settings share one model. macOS can open this
+    // scene when activating the app, so it must expose the real controls.
     Settings {
-      EmptyView()
+      StudioSwitchView(model: appDelegate.model)
+        .frame(width: 400)
     }
   }
 }
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-  private let model = AppModel()
+  let model = AppModel()
   private let popover = NSPopover()
   private var statusItem: NSStatusItem?
   private var cancellables: Set<AnyCancellable> = []
@@ -29,13 +30,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     observeStatus()
   }
 
+  func applicationWillTerminate(_ notification: Notification) {
+    model.stop()
+  }
+
   private func configurePopover() {
     popover.behavior = .transient
     popover.animates = true
-    popover.contentSize = NSSize(width: 360, height: 480)
+    popover.contentSize = NSSize(width: 400, height: 560)
     popover.contentViewController = NSHostingController(
       rootView: StudioSwitchView(model: model)
-        .frame(width: 360)
+        .frame(width: 400)
     )
   }
 
@@ -59,10 +64,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   }
 
   private func observeStatus() {
-    model.$displayAttached
-      .combineLatest(model.$isSwitching)
+    model.$phase
+      .combineLatest(model.$displayAttached, model.$idleSleepError, model.$displayWakeError)
       .receive(on: RunLoop.main)
-      .sink { [weak self] _, _ in self?.updateStatusItem() }
+      .sink { [weak self] _, _, _, _ in self?.updateStatusItem() }
       .store(in: &cancellables)
   }
 
@@ -70,9 +75,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     guard let button = statusItem?.button else { return }
 
     let dotColor: NSColor
-    if model.isSwitching {
+    if model.phase == .needsAttention || !model.sleepProtectionAvailable
+      || model.idleSleepError != nil || model.displayWakeError != nil
+    {
+      dotColor = .systemRed
+    } else if model.isSwitching {
       dotColor = .systemOrange
-    } else if model.displayAttached {
+    } else if model.phase == .connected {
       dotColor = .systemGreen
     } else {
       dotColor = .secondaryLabelColor
@@ -93,6 +102,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     if popover.isShown {
       popover.performClose(sender)
     } else {
+      model.refreshLoginStatus()
+      model.refreshDevices()
       popover.show(relativeTo: sender.bounds, of: sender, preferredEdge: .minY)
       NSApp.activate(ignoringOtherApps: true)
     }

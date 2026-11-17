@@ -15,9 +15,11 @@ let package = Package(
         .linkedFramework("AppKit"),
         .linkedFramework("CoreGraphics"),
         .linkedFramework("IOBluetooth"),
+        .linkedFramework("IOKit"),
         .linkedFramework("ServiceManagement"),
       ]
-    )
+    ),
+    .testTarget(name: "StudioSwitchTests", dependencies: ["StudioSwitch"])
   ],
   swiftLanguageModes: [.v5]
 )
